@@ -1,0 +1,35 @@
+# ワークフロー名
+name: chatbot
+
+# 実行タイミング
+on:
+  schedule:
+    # JST 07:00 (UTC 22:00)
+    - cron: '0 22 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # リポジトリからチェックアウト
+      # v2は古いため、最新のv4推奨へ変更しました
+      - uses: actions/checkout@v4
+
+      # Pythonセットアップ
+      # ここがエラーの主原因でした。v1 -> v5 に変更することで
+      # 環境にないPythonバージョンも自動ダウンロード可能になります
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # 1行にまとめて記述可能です
+          pip install line-bot-sdk beautifulsoup4 schedule lxml
+          
+      - name: Run script
+        run: |
+          python line_bot.py
