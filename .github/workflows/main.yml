@@ -32,4 +32,4 @@ jobs:
           
       - name: Run script
         run: |
-          python line_bot.py
+          python jewelry_bot_mark2.py
