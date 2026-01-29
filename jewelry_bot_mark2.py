@@ -1,6 +1,7 @@
 import json
 import requests
 import re
+import os
 from bs4 import BeautifulSoup
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
@@ -18,8 +19,9 @@ with open("settings.json", encoding="utf-8") as f:
 CH_TOKEN = res["CH_TOKEN"]
 # ユーザーID
 USER_ID = res["USER_ID"]
-# 天気予報URL（砂湯）
+# 天気予報URL（川湯）
 URL = 'https://tenki.jp/amedas/1/3/19021.html'
+URL2 = 'https://tenki.jp/leisure/1/3/6/4080/'
 
 def get_page_info():
     """ 読み込みページ情報取得 """
@@ -28,10 +30,19 @@ def get_page_info():
     html = res.text.encode(res.encoding)
     soup = BeautifulSoup(html, 'lxml')
     
-    return soup
-        
+    return (soup)
 
-def get_wether_info(soup):
+def get_page_info_2():
+    """ 読み込みページ情報取得 """
+
+    res = requests.get(URL2)
+    html = res.text.encode(res.encoding)
+    soup2 = BeautifulSoup(html, 'lxml')
+    
+    return (soup2)
+
+
+def get_wether_info(soup, soup2):
     """ 今日明日の天気予報dict情報の取得 """
 
     # 今日明日の天気リスト
@@ -46,23 +57,33 @@ def get_wether_info(soup):
     contents = soup.find_all(class_= "section-wrap")
     idx = contents[3] #section-wrap[3]が1時間おきの気象情報の値になっているため
 
+    contents3 = soup2.find_all(class_= "forecast-days-wrap")
+    idx2 = contents3[0] #section-wrap[0]に天気情報があるため
+
+
     weather_info_list = [] #1時間おきの気象データすべてを取得後し、タグを外して入れるリスト　
     time_list = [] #予測に使用する時間の情報のインデックスを取得して入れておくリスト
     time_list2 = [] #予測に使用しない時間帯も含めた時間の情報のインデックスを取得して入れておくリスト
     temperature_list = [] #気温の情報を入れておくリスト
     temperature_list2 = [] #夜間の気温が-10℃を下回ったかの判断に使用するリスト
     wind_speed_list = [] #風速情報を入れておくリスト
-    snow_list = []
+    snow_list = [] #降雪量
+    weather = [] #当日の天気
    
     all_dict = {}       #その日の時間ごとの気温を格納する辞書
-    
     flug = 0 # 0なら通常の予測を行い、1なら夜間に-10℃を下回った際に見られる可能性を通知する、2なら通知は行わない
+    
+    DATA_FILE = "yesterday.txt"
 
     #表示の際にprintを使用していないのでlistに入れて時間を無理やり表示    
     num_list = [1, 2, 3, 4, 5, 6, 7, 21, 22, 23, 24]
 
     for i in idx.find_all("td"): #tdタグのものが必要な気象情報になっているため
         weather_info_list.append(i.text)
+        
+    for i in idx2.find_all("p"): #pタグのものが必要な気象情報(天気)になっているため
+        weather.append(i.text)
+    today_weather["weather"] = weather[2]
     
     #日付削除のための臨時修正　要修正箇所
     for i in day_list:
@@ -106,8 +127,12 @@ def get_wether_info(soup):
 
     for i in time_list:
         temperature_list.append(float(weather_info_list[i + 1]))
+        
+    for i in time_list2:
+        temperature_list2.append(float(weather_info_list[i + 1]))
     
     today_weather["avg_tempreture"] = round(mean(temperature_list), 1)
+    today_weather["min_tempreture"] = min(temperature_list2)
     
     #平均風速の取得
     for i in time_list:
@@ -121,7 +146,7 @@ def get_wether_info(soup):
         snow_list.append(i.text)
     data = snow_list[0]
     snow = re.sub("\n|\xa0| |3時間|cm|", "", data)
-    today_weather["snow"] = snow
+    today_weather["snow"] = int(snow)
   
 
     #気温の表示
@@ -133,26 +158,76 @@ def get_wether_info(soup):
         today_weather[str(num_list[num])] = f"{key}: {value}"
         num += 1
 
-    #観測の可否
-    if (today_weather["avg_tempreture"] <= -10) and (today_weather["avg_wind_speed"] <= 1.3) and (today_weather["snow"] == 0):
-        today_weather["analyze"] = "観測できるかもしれません"
-        flug = 0
-    else:
-        today_weather["analyze"] = "観測できないと思います"
-        flug = 2
-
-
-    #夜間の気温が-10℃を下回ったかどうか判定
-    for i in time_list2:
-        temperature_list2.append(float(weather_info_list[i + 1]))
-
-    for i in temperature_list2:
-        if i  < -14 and flug == 2:
-            flug = 1
-            today_weather["analyze"] = "特定の条件を満たしました"
+    #前日の観測データの取得
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                content = f.read()
+                # ファイルの中身が空だったり数値以外の場合の対策
+                if content.strip().isdigit():
+                    yesterday_flug = int(content)
+        except Exception as e:
+            print(f"読み込みエラー: {e}")
+            
+    if yesterday_flug ==0:
+        yesterday_data = "可能でした"
+    elif yesterday_flug ==1:
+        yesterday_data = "おそらく可能でした"
+    elif yesterday_flug ==2:
+        yesterday_data = "不可能でした"   
+        
+    today_weather["yesterday"] = yesterday_data
     
-    #print(temperature_list2)
+    
+    #2026年岡村さんの状態遷移図反映版判定メゾット
+    #前日観察可能
+    if yesterday_flug ==0:
+        #今日の観測の可否
+        if (today_weather["avg_tempreture"] < -10) and (float(today_weather["snow"]) == 0):
+            today_weather["analyze"] = "観測できます"
+            flug = 0
+        
+        elif (-10 <=  today_weather["avg_tempreture"] < 1)  and (today_weather["snow"] == 0):
+            today_weather["analyze"] = "観察できるかもしれません"
+            flug = 1
+        
+        
+        elif(today_weather["avg_tempreture"] >= 1) or (today_weather["snow"] > 0) or (today_weather["min_tempreture"] >= 0):
+            today_weather["analyze"] = "観測できません"
+            flug = 2
+    
+    #前日観察継続
+    elif yesterday_flug == 1:
+        #今日の観測の可否
+        if (today_weather["avg_tempreture"] <= -10) and (today_weather["snow"] == 0):
+            today_weather["analyze"] = "観測できます"
+            flug = 0
+        
+        elif(today_weather["avg_tempreture"] >= -10) or (today_weather["snow"] > 0):
+            today_weather["analyze"] = "観測できません"
+            flug = 2
+        
+    #前日観察不可能
+    elif yesterday_flug == 2:
+        #今日の観測の可否
+        if (today_weather["avg_wind_speed"] <= 1.4) and (today_weather["snow"] == 0):
+            if (today_weather["avg_tempreture"] <= -13) or (today_weather["min_tempreture"] <= -16):
+                today_weather["analyze"] = "観測できます"
+                flug = 0
+                    
+        elif(today_weather["avg_tempreture"] >= 0) and (today_weather["snow"] > 0) and (min(temperature_list2) >= 0):
+            today_weather["analyze"] = "観測できません"
+            flug = 2        
+
+    
     today_weather["flug"] = flug
+    
+     # 今日のフラグをファイルに書き込む
+    try:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            f.write(str(flug))
+    except Exception as e:
+        print(f"書き込みエラー: {e}")
     
     
     # 今日明日の天気リストの格納
@@ -161,38 +236,43 @@ def get_wether_info(soup):
     return weather_list
 
 def create_msg(weather_list):
-    if ((weather_list[0]["flug"]) == 0) or ((weather_list[0]["flug"]) == 2):
+    if  (weather_list[0]["flug"] == 0) or (weather_list[0]["flug"] == 2):
         
         """ LINE BOTメッセージ作成 """
 
         # BOTメッセージフォーマット
         msg_format = """
-        平均気温(C)       : {0}
-        平均風速(m/s)     : {1}
-        積雪量(cm)         : {2}
-        ジュエリーバブルの観測  : {3}
+        天気              : {0}
+        平均気温(C)       : {1}
+        最低気温(C)       : {2}
+        平均風速(m/s)     : {3}
+        積雪量(cm)        : {4}
+        ジュエリーバブルの観測  : {5}
         
         夜間の気温
-        {4}
-        {5}
         {6}
         {7}
         {8}
         {9}
         {10}
-        
-        予測には3時までの値を使用
         {11}
         {12}
+        
+        予測には3時までの値を使用
         {13}
         {14}
+        {15}
+        {16}
         
+        前日の観測: {17}
         """
         
         msg = ""
         for weather in weather_list:
             msg += msg_format.format(
+                weather["weather"],
                 weather["avg_tempreture"],
+                weather["min_tempreture"],
                 weather["avg_wind_speed"],
                 weather["snow"],
                 weather["analyze"],
@@ -207,7 +287,7 @@ def create_msg(weather_list):
                 weather["5"],
                 weather["6"],
                 weather["7"],
-                weather["flug"]
+                weather["yesterday"]
             )
         bot_msg = msg
     
@@ -216,33 +296,37 @@ def create_msg(weather_list):
 
         # BOTメッセージフォーマット
         msg_format = """
-        平均気温(C)       : {0}
-        平均風速(m/s)     : {1}
-        積雪量(cm)         : {2}
-        ジュエリーバブルの観測  : {3}
+        天気              : {0}
+        平均気温(C)       : {1}
+        最低気温(C)       : {2}
+        平均風速(m/s)     : {3}
+        積雪量(cm)        : {4}
+        ジュエリーバブルの観測  : {5}
         
         夜間の気温
-        {4}
-        {5}
         {6}
         {7}
         {8}
         {9}
         {10}
-        
-        予測には3時までの値を使用
         {11}
         {12}
+        
+        予測には3時までの値を使用
         {13}
         {14}
+        {15}
+        {16}
         
-        夜間に-14℃を下回った箇所があります
+        前日の観測: {17}
         """
         
         msg = ""
         for weather in weather_list:
             msg += msg_format.format(
+                weather["weather"],
                 weather["avg_tempreture"],
+                weather["min_tempreture"],
                 weather["avg_wind_speed"],
                 weather["snow"],
                 weather["analyze"],
@@ -257,7 +341,7 @@ def create_msg(weather_list):
                 weather["5"],
                 weather["6"],
                 weather["7"],
-                weather["flug"]
+                weather["yesterday"]
             )
         bot_msg = msg
 
@@ -266,20 +350,29 @@ def create_msg(weather_list):
 
 def main():
     """ LINE BOTメイン処理 """
+    
 
     # 天気予報ページ情報取得
     soup = get_page_info()
+    soup2 = get_page_info_2()
 
 
     # 今日明日の天気予報情報
-    weather_list = get_wether_info(soup)
-
+    weather_list = get_wether_info(soup, soup2)
+    
     # LINE BOTメッセージ
+    
+    if (weather_list[0]["analyze"]) ==  "観測できません":
+        pass
+    
+    else:
+        msg = create_msg(weather_list)
+        messages = TextSendMessage(text=msg)
+        line_bot_api = LineBotApi(CH_TOKEN)
+        line_bot_api.push_message(USER_ID, messages=messages)
 
-    msg = create_msg(weather_list)
-    messages = TextSendMessage(text=msg)
-    line_bot_api = LineBotApi(CH_TOKEN)
-    line_bot_api.push_message(USER_ID, messages=messages)
+
+
 
 
 
