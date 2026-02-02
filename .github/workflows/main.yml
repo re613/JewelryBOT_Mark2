@@ -3,10 +3,10 @@ name: chatbot
 
 # 実行タイミング
 on:
-   push
- # schedule:
+ #  push
+  schedule:
     # JST 07:00 (UTC 22:00)
- #   - cron: '0 22 * * *'
+    - cron: '0 22 * * *'
 
 jobs:
   build:
