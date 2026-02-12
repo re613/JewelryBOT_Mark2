@@ -8,6 +8,9 @@ on:
     # JST 07:00 (UTC 22:00)
     - cron: '0 22 * * *'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,3 +37,19 @@ jobs:
       - name: Run script
         run: |
           python jewelry_bot_mark2.py
+
+      # 【今回追加】変更された yesterday.txt をコミットしてプッシュする
+      - name: Commit and Push changes
+        run: |
+          # Gitの設定（Botとしてコミット）
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # ファイルをステージング
+          git add yesterday.txt
+          
+          # 変更がある場合のみコミット（変更がないとエラーになるのを防ぐため || exit 0 をつける）
+          git commit -m "Update weather status [skip ci]" || exit 0
+          
+          # リポジトリに反映
+          git push
