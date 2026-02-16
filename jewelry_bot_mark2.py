@@ -219,10 +219,6 @@ def get_wether_info(soup, soup2):
             today_weather["analyze"] = "観測できません"
             flug = 2
 
-        else:
-            today_weather["analyze"] = "観測できます"
-            flug = 0
-
     today_weather["flug"] = flug
     
      # 今日のフラグをファイルに書き込む
