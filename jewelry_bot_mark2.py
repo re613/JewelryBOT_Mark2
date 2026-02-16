@@ -218,6 +218,11 @@ def get_wether_info(soup, soup2):
         elif(today_weather["avg_tempreture"] >= 0) and (today_weather["snow"] > 0) and (min(temperature_list2) >= 0):
             today_weather["analyze"] = "観測できません"
             flug = 2
+        
+        else:
+            today_weather["analyze"] = "観測できません"
+            flug = 2
+            
 
     today_weather["flug"] = flug
     
@@ -367,10 +372,6 @@ def main():
         messages = TextSendMessage(text=msg)
         line_bot_api = LineBotApi(CH_TOKEN)
         line_bot_api.push_message(USER_ID, messages=messages)
-
-
-
-
 
 
 if __name__ == "__main__":
