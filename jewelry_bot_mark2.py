@@ -217,9 +217,12 @@ def get_wether_info(soup, soup2):
                     
         elif(today_weather["avg_tempreture"] >= 0) and (today_weather["snow"] > 0) and (min(temperature_list2) >= 0):
             today_weather["analyze"] = "観測できません"
-            flug = 2        
+            flug = 2
 
-    
+        else:
+            today_weather["analyze"] = "観測できます"
+            flug = 0
+
     today_weather["flug"] = flug
     
      # 今日のフラグをファイルに書き込む
