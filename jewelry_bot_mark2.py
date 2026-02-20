@@ -210,8 +210,8 @@ def get_wether_info(soup, soup2):
     #前日観察不可能
     elif yesterday_flug == 2:
         #今日の観測の可否
-        if (today_weather["avg_wind_speed"] <= 1.4) and (today_weather["snow"] == 0):
-            if (today_weather["avg_tempreture"] <= -13) or (today_weather["min_tempreture"] <= -16):
+        if (today_weather["avg_tempreture"] <= -13) or (today_weather["min_tempreture"] <= -16):
+            (today_weather["avg_wind_speed"] <= 1.4) and (today_weather["snow"] == 0):
                 today_weather["analyze"] = "観測できます"
                 flug = 0
                     
