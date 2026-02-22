@@ -4,9 +4,9 @@ name: chatbot
 # 実行タイミング
 on:
     # JST 07:00 (UTC 22:00)
-  schedule:
-    - cron: '0 22 * * *'
-  #push
+  #schedule:
+    #- cron: '0 22 * * *'
+  push
   
 
   
