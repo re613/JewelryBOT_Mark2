@@ -363,11 +363,14 @@ def main():
     weather_list = get_wether_info(soup, soup2)
     
     # LINE BOTメッセージ
+    if (weather_list[0]["analyze"]) == "観測できます":
+        msg = create_msg(weather_list)
+        messages = TextSendMessage(text=msg)
+        line_bot_api = LineBotApi(CH_TOKEN)
+        line_bot_api.push_message(USER_ID, messages=messages)
 
-    msg = create_msg(weather_list)
-    messages = TextSendMessage(text=msg)
-    line_bot_api = LineBotApi(CH_TOKEN)
-    line_bot_api.push_message(USER_ID, messages=messages)
+    else:
+        pass
 
 
 if __name__ == "__main__":
